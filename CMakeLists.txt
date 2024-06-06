@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.27)
 project("TLS Socket" C)
 
-add_executable(main main.c)
+include_directories(./src)
+add_executable(main ./src/main.c)
 
