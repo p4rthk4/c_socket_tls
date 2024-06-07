@@ -18,13 +18,15 @@ typedef struct _server_t {
     int socket_fd;
     int port;
     int event_loop_fd;
+    SSL_CTX* ssl_ctx;
 } server_t;
 
 typedef struct _event_client event_client;
 typedef struct _event_server event_server;
 
 typedef void (*handler_func)(void*);
-typedef int (*sendandrecvfunc)(int, char*, int, event_client*);
+typedef int (*sendfunc)(int, const void*, size_t, event_client*);
+typedef int (*recvfunc)(int, void*, size_t, event_client*);
 
 struct _event_server {
     int fd;
@@ -58,11 +60,14 @@ struct _event_client {
     int buf_cur;
     int ind;
     text_buf* text;
-    sendandrecvfunc recv_func;
-    sendandrecvfunc send_func;
+    text_buf* file;
+    FILE* f;
+    recvfunc recv_func;
+    sendfunc send_func;
+    SSL* ssl;
 };
 
-#define TEXT_CAP 20
+#define TEXT_CAP 16384
 
 void server_set_port(server_t*, int);
 void server_make(server_t*);
@@ -87,13 +92,16 @@ void send_text(void*);
 void recv_chunk(event_client*);
 void recv_chunk(event_client*);
 int recv_text_chunk(event_client*);
+int recv_file_chunk(event_client*);
 int get_commond_from_buf(event_client*, char*);
+
 
 enum PARSE_PARSE {
     PARSE_OK,
     PARSE_MORE
 };
 int parse_text(event_client*, int);
+int parse_file(event_client*, int);
 
 enum GET_COMMOND {
     COMMOND_MORE = 0,
@@ -104,7 +112,19 @@ enum GET_COMMOND {
 void commond_handle(event_client*, char*);
 void text_handle(void*);
 
+void file_handle(void*);
+
+void tls_connect_handle(void*);
+
 void to_upper(char*, int);
 
-int send_func(int, char*, int, event_client*);
-int recv_func(int, char*, int, event_client*);
+int send_func(int, const void*, size_t, event_client*);
+int recv_func(int, void*, size_t, event_client*);
+int send_func_ssl(int, const void*, size_t, event_client*);
+int recv_func_ssl(int, void*, size_t, event_client*);
+
+
+void init_openssl();
+void cleanup_openssl();
+SSL_CTX* create_context();
+void configure_context(SSL_CTX*);

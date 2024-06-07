@@ -17,9 +17,15 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 // header file
 #include <main.h>
+
+#define CERT_FILE "./cert.pem"
+#define KEY_FILE "./key.pem"
+
 
 int main() {
     server_t server;
@@ -30,6 +36,14 @@ int main() {
 }
 
 void server_make(server_t* server) {
+
+    init_openssl();
+    SSL_CTX* ctx = create_context();
+    configure_context(ctx);
+
+    server->ssl_ctx = ctx;
+
+
     server->socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server->socket_fd < 0) {
         PANIC("socket create error");
@@ -107,8 +121,6 @@ void accept_new_connection(void* ptr) {
     client->fd = client_fd;
     client->server = s->server;
     client->handler = send_hello;
-    client->recv_func = recv_func;
-    client->send_func = send_func;
 
     printf("FD: %d\n", client_fd);
 
@@ -182,15 +194,36 @@ void commond_handle(event_client* client, char* commond) {
         int send_rtv = client->send_func(client->fd, "OK GO AHEAD\r\n", 13, client);
     }
     else if (strcmp(commond, "FILE") == 0) {
-        int send_rtv = client->send_func(client->fd, "ERROR NO IMPLI\r\n", 16, client);
-        if (send_rtv < 1) {
-            PANIC("send error");
+
+        char* file_path = "./tmp_files/f1";
+        remove(file_path);
+
+        FILE* f = fopen(file_path, "a");
+
+        if (f == NULL) {
+            perror("file open error");
+            exit(0);
         }
+
+        client->f = f;
+
+        client->handler = file_handle;
+        int send_rtv = client->send_func(client->fd, "OK GO AHEAD\r\n", 13, client);
     }
     else if (strcmp(commond, "STARTTLS") == 0) {
-        int send_rtv = client->send_func(client->fd, "ERROR NO IMPLI\r\n", 16, client);
-        if (send_rtv < 1) {
-            PANIC("send error");
+        DEBUG("go1..\n");
+        SSL* ssl = SSL_new(client->server->ssl_ctx);
+        SSL_set_fd(ssl, client->fd);
+
+        int send_rtv = client->send_func(client->fd, "OK HANDSHACK\r\n", 14, client);
+
+        if (SSL_accept(ssl) <= 0) {
+            PANIC("ERROR ON ACCEPT...\n");
+        }
+        else {
+            client->ssl = ssl;
+            client->recv_func = recv_func_ssl;
+            client->send_func = send_func_ssl;
         }
     }
     else if (strcmp(commond, "STATES") == 0) {
@@ -203,6 +236,7 @@ void commond_handle(event_client* client, char* commond) {
         }
 
         if (client->text->t_cur > 0) {
+            // DEBUG("SET FD TO WRITR...\n");
             client->handler = send_text;
             ev_poll_to_write(client->server, client->fd, (void*)client);
         }
@@ -226,14 +260,87 @@ void commond_handle(event_client* client, char* commond) {
 void text_handle(void* ptr) {
     event_client* client = (event_client*)ptr;
     int start = recv_text_chunk(client);
-
+    DEBUG("NOP\n");
     if (parse_text(client, start) == PARSE_OK) {
         client->handler = read_commond_and_write;
-        int send_rtv = client->send_func(client->fd, "OK TEXT WRITE\r\n", 15, 0);
+        int send_rtv = client->send_func(client->fd, "OK TEXT WRITE\r\n", 15, client);
         if (send_rtv < 1) {
             PANIC("send error");
+            DEBUG("NOP3\n");
         }
     }
+    DEBUG("NOP2\n");
+}
+
+void file_handle(void* ptr) {
+    event_client* client = (event_client*)ptr;
+    int start = recv_file_chunk(client);
+    // for (int i = start; i < client->file->t_cur; i++) {
+    //     printf("%d %c\n", client->file->t[i], client->file->t[i]);
+    // }
+    DEBUG("NOP\n");
+    if (parse_file(client, start) == PARSE_OK) {
+        client->handler = read_commond_and_write;
+        fwrite(client->file->t, sizeof(char), client->file->t_cur, client->f);
+        fclose(client->f);
+        client->f = NULL;
+        int send_rtv = client->send_func(client->fd, "OK FILE WRITE\r\n", 15, client);
+        if (send_rtv < 1) {
+            PANIC("send error");
+            DEBUG("NOP3\n");
+        }
+    }
+    DEBUG("NOP2\n");
+}
+
+int parse_file(event_client* client, int start) {
+    crlf_t* crlf = &client->file->crlf;
+
+    for (int i = start; i < client->file->t_cur; i++) {
+        if (client->file->t[i] == '\r') {
+            if (crlf->d == 1) {
+                crlf->s_r = 1;
+            }
+            else {
+                crlf->f_r = 1;
+            }
+            // DEBUG("read <CR>\n");
+            // printf("%d %d %d %d %d\n", crlf->f_r, crlf->f_n, crlf->d, crlf->s_r, crlf->s_n);
+        }
+        else if (client->file->t[i] == '\n') {
+            if (crlf->s_r == 1) {
+                client->file->t_cur = i - 4;
+                // printf("%d\n", i);
+                DEBUG("READ <CRLF>.<CRLF> IN TEXT...\n");
+                return PARSE_OK;
+            }
+            else {
+                if (crlf->f_r == 1) {
+                    crlf->f_n = 1;
+                }
+                else {
+                    crlf->f_n = 0;
+                    crlf->f_r = 0;
+                }
+            }
+            // DEBUG("read <LF>\n");
+            // printf("%d %d %d %d %d\n", crlf->f_r, crlf->f_n, crlf->d, crlf->s_r, crlf->s_n);
+        }
+        else if (client->file->t[i] == '.') {
+            if (crlf->f_n == 1) {
+                crlf->d = 1;
+            }
+            // DEBUG("read <.>\n");
+            // printf("%d %d %d %d %d\n", crlf->f_r, crlf->f_n, crlf->d, crlf->s_r, crlf->s_n);
+        }
+        else {
+            crlf->f_r = 0; crlf->f_n = 0; crlf->d = 0; crlf->s_r = 0; crlf->s_n = 0;
+            // printf("%d %d %d %d %d\n", crlf->f_r, crlf->f_n, crlf->d, crlf->s_r, crlf->s_n);
+        }
+
+    }
+
+    return PARSE_MORE;
 }
 
 int parse_text(event_client* client, int start) {
@@ -286,6 +393,10 @@ int parse_text(event_client* client, int start) {
     return PARSE_MORE;
 }
 
+void tls_connect_handle(void* ptr) {
+    event_client* client = (event_client*)ptr;
+}
+
 void send_text(void* ptr) {
     event_client* client = (event_client*)ptr;
     int rem_buf = client->text->t_cur - client->text->t_w_cur;
@@ -296,12 +407,11 @@ void send_text(void* ptr) {
     //     printf("R: %d %c\n", client->text->t[j], client->text->t[j]);
     // }
 
-    int w_len = client->send_func(client->fd, client->text->t + client->text->t_w_cur, text_cap, 0);
+    int w_len = client->send_func(client->fd, client->text->t + client->text->t_w_cur, text_cap, client);
     if (w_len < 1) {
         client_close(client);
         return;
     }
-    DEBUG("WRITE TEXT...\n");
 
     if (rem_buf <= TEXT_CAP) {
         if (send(client->fd, "<END OF TEXT>\r\n", 15, 0) < 0) {
@@ -326,18 +436,43 @@ int recv_text_chunk(event_client* client) {
         client_close(client);
     }
     client->text->t_cur += recv_len;
+
+    int remine = client->text->t_cap - client->text->t_cur;
+    int add = TEXT_CAP - remine;
+
     if (client->text->t_cur == client->text->t_cap) {
         DEBUG("realloc text buf...\n");
-        client->text->t = (char*)realloc(client->text->t, sizeof(char) * (client->text->t_cap + TEXT_CAP));
-        client->text->t_cap += TEXT_CAP;
+        client->text->t = (char*)realloc(client->text->t, sizeof(char) * (client->text->t_cap + add));
+        client->text->t_cap += add;
     }
+    DEBUG("read text chunck end...\n");
     return start;
 }
 
+int recv_file_chunk(event_client* client) {
+    DEBUG("read text chunck...\n");
+    int start = client->file->t_cur;
+    int recv_len = client->recv_func(client->fd, client->file->t + client->file->t_cur, client->file->t_cap - client->file->t_cur, client);
+    if (recv_len < 1) {
+        client_close(client);
+    }
+    client->file->t_cur += recv_len;
+
+    int remine = client->file->t_cap - client->file->t_cur;
+    int add = TEXT_CAP - remine;
+
+    if (client->file->t_cur == client->file->t_cap) {
+        DEBUG("realloc text buf...\n");
+        client->file->t = (char*)realloc(client->file->t, sizeof(char) * (client->file->t_cap + add));
+        client->file->t_cap += add;
+    }
+    DEBUG("read text chunck end...\n");
+    return start;
+}
 
 void recv_chunk(event_client* client) {
     DEBUG("read chunck...\n");
-    int recv_len = client->recv_func(client->fd, client->buf + client->buf_len, 1024 - client->buf_len, client);
+    int recv_len = client->recv_func(client->fd, client->buf + client->buf_len, 16384 - client->buf_len, client);
     if (recv_len < 1) {
         client_close(client);
     }
@@ -362,23 +497,46 @@ int get_commond_from_buf(event_client* client, char* commond) {
 
 event_client* client_init() {
     event_client* ev_client = (event_client*)malloc(sizeof(event_client));
-    ev_client->buf = (char*)malloc(sizeof(char) * 1024);
+    ev_client->buf = (char*)malloc(sizeof(char) * 16384);
     ev_client->buf_len = 0;
     ev_client->buf_cur = 0;
     ev_client->ind = 0;
+    ev_client->recv_func = recv_func;
+    ev_client->send_func = send_func;
+    ev_client->ssl = NULL;
+    ev_client->f = NULL;
 
     text_buf* text = (text_buf*)malloc(sizeof(text_buf));
     text->t = (char*)malloc(sizeof(char) * TEXT_CAP);
     text->t_cap = TEXT_CAP;
     text->t_cur = 0;
+    text->t_w_cur = 0;
 
     ev_client->text = text;
+
+    text_buf* file = (text_buf*)malloc(sizeof(text_buf));
+    file->t = (char*)malloc(sizeof(char) * TEXT_CAP);
+    file->t_cap = TEXT_CAP;
+    file->t_cur = 0;
+    file->t_w_cur = 0;
+
+    ev_client->file = file;
 
     return ev_client;
 }
 
 void client_close(event_client* client) {
     ev_poll_remove(client->server, client->fd);
+
+    if (client->ssl != NULL) {
+        SSL_shutdown(client->ssl);
+        SSL_free(client->ssl);
+    }
+
+    if (client->f != NULL) {
+        fclose(client->f);
+    }
+
     close(client->fd);
     free(client->buf);
     free(client->text->t);
@@ -432,11 +590,18 @@ void ev_poll_remove(server_t* server, int fd) {
     }
 }
 
-int send_func(int fd, char* buf, int len, event_client* clinet) {
+int send_func(int fd, const void* buf, size_t len, event_client* clinet) {
     return send(fd, buf, len, 0);
 }
-int recv_func(int fd, char* buf, int len, event_client* clinet) {
+int recv_func(int fd, void* buf, size_t len, event_client* clinet) {
     return recv(fd, buf, len, 0);
+}
+
+int send_func_ssl(int fd, const void* buf, size_t len, event_client* clinet) {
+    return SSL_write(clinet->ssl, buf, len);
+}
+int recv_func_ssl(int fd, void* buf, size_t len, event_client* clinet) {
+    return SSL_read(clinet->ssl, buf, len);
 }
 
 void server_set_port(server_t* server, int port) {
@@ -446,5 +611,45 @@ void server_set_port(server_t* server, int port) {
 void to_upper(char* s, int l) {
     for (int i = 0; i < l; i++) {
         s[i] = toupper(s[i]);
+    }
+}
+
+void init_openssl() {
+    SSL_load_error_strings();
+    OpenSSL_add_ssl_algorithms();
+}
+
+void cleanup_openssl() {
+    EVP_cleanup();
+}
+
+SSL_CTX* create_context() {
+    const SSL_METHOD* method;
+    SSL_CTX* ctx;
+
+    method = SSLv23_server_method();
+
+    ctx = SSL_CTX_new(method);
+    if (!ctx) {
+        perror("Unable to create SSL context");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    return ctx;
+}
+
+void configure_context(SSL_CTX* ctx) {
+    SSL_CTX_set_ecdh_auto(ctx, 1);
+
+    /* Set the certificate and private key */
+    if (SSL_CTX_use_certificate_file(ctx, CERT_FILE, SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    if (SSL_CTX_use_PrivateKey_file(ctx, KEY_FILE, SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
     }
 }
