@@ -38,7 +38,7 @@ func main() {
 	buf = make([]byte, 1024)
 	readlen, _ = conn.Read(buf)
 	fmt.Print(string(buf[:readlen]))
-	
+
 	////////////////// tls start
 
 	// starttls
@@ -50,7 +50,6 @@ func main() {
 	buf = make([]byte, 1024)
 	readlen, _ = conn.Read(buf)
 	fmt.Print(string(buf[:readlen]))
-
 
 	cert, err := ioutil.ReadFile("./cert.pem")
 	if err != nil {
@@ -82,7 +81,6 @@ func main() {
 
 	////////////////// tls stop
 
-
 	// tlsConn := conn
 
 	// inc
@@ -102,6 +100,25 @@ func main() {
 	}
 
 	buf = make([]byte, 10240)
+	readlen, _ = tlsConn.Read(buf)
+	fmt.Print(string(buf[:readlen]))
+
+	// file name
+	_, err = tlsConn.Write([]byte("name.."))
+	if err != nil {
+		panic(err)
+	}
+
+	buf = make([]byte, 1024)
+	readlen, _ = tlsConn.Read(buf)
+	fmt.Print(string(buf[:readlen]))
+
+	_, err = tlsConn.Write([]byte("f1.f1\r\n.\r\n"))
+	if err != nil {
+		panic(err)
+	}
+
+	buf = make([]byte, 1024)
 	readlen, _ = tlsConn.Read(buf)
 	fmt.Print(string(buf[:readlen]))
 
