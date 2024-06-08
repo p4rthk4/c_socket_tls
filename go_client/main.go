@@ -5,11 +5,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
-	_ "time"
 )
 
 func main() {
@@ -51,7 +49,7 @@ func main() {
 	readlen, _ = conn.Read(buf)
 	fmt.Print(string(buf[:readlen]))
 
-	cert, err := ioutil.ReadFile("./cert.pem")
+	cert, err := os.ReadFile("./cert.pem")
 	if err != nil {
 		log.Fatalf("client: unable to read cert.pem: %v", err)
 	}
