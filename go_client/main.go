@@ -166,44 +166,6 @@ func main() {
 	readlen, _ = tlsConn.Read(buf)
 	fmt.Print(string(buf[:readlen]))
 
-	// states
-	_, err = tlsConn.Write([]byte("states.."))
-	if err != nil {
-		panic(err)
-	}
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Println(readlen, string(buf[:readlen]))
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Println(readlen, string(buf[:readlen]))
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Println(readlen, string(buf[:readlen]))
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Println(readlen, string(buf[:readlen]))
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Println(readlen, string(buf[:readlen]))
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Println(readlen, string(buf[:readlen]))
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Println(readlen, string(buf[:readlen]))
-
 	fmt.Println("quit...")
 
 	conn.Close()

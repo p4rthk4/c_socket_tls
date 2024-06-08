@@ -10,4 +10,4 @@ def generate_dummy_files(directory, num_files, min_size_mb, max_size_mb):
             f.write(os.urandom(size_mb * 1024 * 1024))
     print(f'{num_files} files generated in {directory}')
 
-generate_dummy_files('dummy_files', 212, 25, 50)
+generate_dummy_files('dummy_files', 400, 5, 40)
