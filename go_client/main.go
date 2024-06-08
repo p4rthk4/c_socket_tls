@@ -1,174 +1,53 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"io"
-	"log"
-	"net"
-	"os"
+	"sync"
 )
 
 func main() {
 
-	ADDRESS := "localhost:5005"
+	fileList := getFileList();
 
-	conn, err := net.Dial("tcp", ADDRESS)
-	if err != nil {
-		panic(err)
+	numRoutines := 5
+
+	// Distribute files among routines
+	fileChunks := distributeFiles(fileList, numRoutines)
+
+	// Wait group for synchronization
+	var wg sync.WaitGroup
+
+	// Launch Go routines
+	for i, files := range fileChunks {
+		wg.Add(1)
+		go processFiles(files, &wg, i)
+		fmt.Printf("Go routine %d started\n", i+1)
 	}
 
-	buf := make([]byte, 1024)
-	readlen, _ := conn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
+	wg.Wait()
 
-	// hello
-	_, err = conn.Write([]byte("hell"))
-	if err != nil {
-		panic(err)
-	}
-	_, err = conn.Write([]byte("o.."))
-	if err != nil {
-		panic(err)
-	}
+}
 
-	buf = make([]byte, 1024)
-	readlen, _ = conn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
 
-	////////////////// tls start
+func distributeFiles(fileNames []string, numRoutines int) [][]string {
+	chunkSize := (len(fileNames) + numRoutines - 1) / numRoutines // Round up
+	chunks := make([][]string, numRoutines)
 
-	// starttls
-	_, err = conn.Write([]byte("starttls.."))
-	if err != nil {
-		panic(err)
-	}
-
-	buf = make([]byte, 1024)
-	readlen, _ = conn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
-
-	cert, err := os.ReadFile("./cert.pem")
-	if err != nil {
-		log.Fatalf("client: unable to read cert.pem: %v", err)
-	}
-
-	// Create a certificate pool with the server certificate
-	certPool := x509.NewCertPool()
-	if ok := certPool.AppendCertsFromPEM(cert); !ok {
-		log.Fatalf("client: unable to parse cert.pem")
-	}
-
-	// Step 3: Create a TLS configuration
-	tlsConfig := &tls.Config{
-		RootCAs:            certPool,
-		ServerName:         "localhost",
-		InsecureSkipVerify: true,
-	}
-
-	// Step 4: Wrap the TCP connection with TLS
-	tlsConn := tls.Client(conn, tlsConfig)
-	defer tlsConn.Close()
-
-	// Perform the TLS handshake
-	if err := tlsConn.Handshake(); err != nil {
-		log.Fatalf("client: TLS handshake failed: %s", err)
-	}
-	fmt.Println("client: TLS connection established")
-
-	////////////////// tls stop
-
-	// tlsConn := conn
-
-	// inc
-	_, err = tlsConn.Write([]byte("inc.."))
-	if err != nil {
-		panic(err)
-	}
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
-
-	// states
-	_, err = tlsConn.Write([]byte("states.."))
-	if err != nil {
-		panic(err)
-	}
-
-	buf = make([]byte, 10240)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
-
-	// file name
-	_, err = tlsConn.Write([]byte("name.."))
-	if err != nil {
-		panic(err)
-	}
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
-
-	_, err = tlsConn.Write([]byte("f1.f1\r\n.\r\n"))
-	if err != nil {
-		panic(err)
-	}
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
-
-	// text
-	_, err = tlsConn.Write([]byte("file.."))
-	if err != nil {
-		panic(err)
-	}
-
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
-
-	// // write text
-	// _, err = tlsConn.Write([]byte("hello my name "))
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// time.Sleep(time.Second * 2)
-	// _, err = tlsConn.Write([]byte("is parth degama\r\n.\r\n"))
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	path := "/home/parthka/Projects/c_socket_tls/dummy_files/dummy_file_52.bin"
-	fs, err := os.Open(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for {
-		buf := make([]byte, 1024)
-		buf_len, err := fs.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				tlsConn.Write([]byte("\r\n.\r\n"))
-				break
-			} else {
-				log.Fatal(err)
-			}
+	for i := 0; i < numRoutines; i++ {
+		start := i * chunkSize
+		end := start + chunkSize
+		if end > len(fileNames) {
+			end = len(fileNames)
 		}
-		buf = buf[:buf_len]
-		tlsConn.Write([]byte(buf))
+		chunks[i] = fileNames[start:end]
 	}
 
-	buf = make([]byte, 1024)
-	readlen, _ = tlsConn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
+	return chunks
+}
 
-	fmt.Println("quit...")
-
-	conn.Close()
-	tlsConn.Close()
-
+func processFiles(files []string, wg *sync.WaitGroup, r int) {
+	defer wg.Done()
+	for _, file := range files {
+		client(file)
+	}
 }

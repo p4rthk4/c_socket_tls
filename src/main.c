@@ -148,7 +148,9 @@ void read_and_write(void* ptr) {
 
 void read_commond_and_write(void* ptr) {
     event_client* client = (event_client*)ptr;
-    recv_chunk(client);
+    if (recv_chunk(client) == 0) {
+        return;
+    }
 
     char commond[100] = "";
     switch (get_commond_from_buf(client, commond)) {
@@ -468,6 +470,7 @@ int recv_text_chunk(event_client* client) {
     int recv_len = client->recv_func(client->fd, client->text->t + client->text->t_cur, client->text->t_cap - client->text->t_cur, client);
     if (recv_len < 1) {
         client_close(client);
+        return 0;
     }
     client->text->t_cur += recv_len;
 
@@ -496,8 +499,10 @@ int recv_file_chunk(event_client* client) {
     DEBUG("read text chunck...\n");
     int start = client->file->t_cur;
     int recv_len = client->recv_func(client->fd, client->file->t + client->file->t_cur, client->file->t_cap - client->file->t_cur, client);
+    DEBUG("read text chunck...1\n");
     if (recv_len < 1) {
         client_close(client);
+        return 0;
     }
     client->file->t_cur += recv_len;
 
@@ -512,7 +517,7 @@ int recv_file_chunk(event_client* client) {
     DEBUG("read text chunck end...\n");
 
     if (client->ssl != NULL) {
-        // DEBUG("COND1\n");
+        DEBUG("COND1\n");
         if (SSL_pending(client->ssl) > 0) {
             // DEBUG("COND2\n");
             recv_file_chunk(client);
@@ -522,13 +527,16 @@ int recv_file_chunk(event_client* client) {
     return start;
 }
 
-void recv_chunk(event_client* client) {
-    DEBUG("read chunck...\n");
+int recv_chunk(event_client* client) {
+    DEBUG("read commond chunck...\n");
     int recv_len = client->recv_func(client->fd, client->buf + client->buf_len, 16384 - client->buf_len, client);
+    printf("recive commond %d\n", recv_len);
     if (recv_len < 1) {
         client_close(client);
+        return 0;
     }
     client->buf_len += recv_len;
+    return 1;
 }
 
 int get_commond_from_buf(event_client* client, char* commond) {
@@ -653,7 +661,9 @@ int send_func_ssl(int fd, const void* buf, size_t len, event_client* clinet) {
     return SSL_write(clinet->ssl, buf, len);
 }
 int recv_func_ssl(int fd, void* buf, size_t len, event_client* clinet) {
-    return SSL_read(clinet->ssl, buf, len);
+    int r = SSL_read(clinet->ssl, buf, len);
+    printf("read: %d\n", r);
+    return r;
 }
 
 void server_set_port(server_t* server, int port) {

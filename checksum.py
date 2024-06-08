@@ -39,9 +39,9 @@ def main(directory, output_file, algorithm):
     for file_path in files:
         checksum = compute_checksum(file_path, algorithm)
         if checksum:
-            checksums[file_path] = checksum
+            checksums[file_path.split("/")[-1]] = checksum
         else:
-            checksums[file_path] = 'Error computing checksum'
+            checksums[file_path.split("/")[-1]] = 'Error computing checksum'
 
     with open(output_file, 'w') as f:
         json.dump(checksums, f, indent=4)
