@@ -68,6 +68,7 @@ struct _event_client {
 };
 
 #define TEXT_CAP 16384
+#define BASEFILE_PATH "./tmp_files/"
 
 void server_set_port(server_t*, int);
 void server_make(server_t*);
@@ -113,6 +114,7 @@ void commond_handle(event_client*, char*);
 void text_handle(void*);
 
 void file_handle(void*);
+void filename_handle(void*);
 
 void to_upper(char*, int);
 

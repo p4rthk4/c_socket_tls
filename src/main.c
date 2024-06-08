@@ -194,20 +194,19 @@ void commond_handle(event_client* client, char* commond) {
         int send_rtv = client->send_func(client->fd, "OK GO AHEAD\r\n", 13, client);
     }
     else if (strcmp(commond, "FILE") == 0) {
-
-        char* file_path = "./tmp_files/f1";
-        remove(file_path);
-
-        FILE* f = fopen(file_path, "a");
-
-        if (f == NULL) {
-            perror("file open error");
-            exit(0);
+        if (client->f == NULL) {
+            int send_rtv = client->send_func(client->fd, "ERROR FILE NOT FOUND\r\n", 22, client);
+            if (send_rtv < 1) {
+                PANIC("send error");
+            }
+            return;
         }
-
-        client->f = f;
-
         client->handler = file_handle;
+        int send_rtv = client->send_func(client->fd, "OK GO AHEAD\r\n", 13, client);
+    }
+    else if (strcmp(commond, "NAME") == 0) {
+        client->text->t_cur = 0;
+        client->handler = filename_handle;
         int send_rtv = client->send_func(client->fd, "OK GO AHEAD\r\n", 13, client);
     }
     else if (strcmp(commond, "STARTTLS") == 0) {
@@ -263,6 +262,43 @@ void text_handle(void* ptr) {
     int start = recv_text_chunk(client);
     DEBUG("NOP\n");
     if (parse_text(client, start) == PARSE_OK) {
+        client->handler = read_commond_and_write;
+        int send_rtv = client->send_func(client->fd, "OK TEXT WRITE\r\n", 15, client);
+        if (send_rtv < 1) {
+            PANIC("send error");
+            DEBUG("NOP3\n");
+        }
+    }
+}
+
+void filename_handle(void* ptr) {
+    event_client* client = (event_client*)ptr;
+    int start = recv_text_chunk(client);
+    DEBUG("NOP\n");
+    if (parse_text(client, start) == PARSE_OK) {
+
+        char* filename = (char*)malloc(sizeof(char) * 200);
+        memcpy(filename, client->text->t, client->text->t_cur - 2);
+        filename[client->text->t_cur - 2] = '\0';
+
+        char base_file_path[300] = BASEFILE_PATH;
+        strcat(base_file_path, filename);
+        free(filename);
+
+        client->text->t_cur = 0;
+        printf("full path: %s\n", base_file_path);
+
+        remove(base_file_path);
+
+        FILE* f = fopen(base_file_path, "a");
+
+        if (f == NULL) {
+            perror("file open error");
+            exit(0);
+        }
+
+        client->f = f;
+
         client->handler = read_commond_and_write;
         int send_rtv = client->send_func(client->fd, "OK TEXT WRITE\r\n", 15, client);
         if (send_rtv < 1) {
