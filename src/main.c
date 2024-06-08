@@ -122,7 +122,7 @@ void accept_new_connection(void* ptr) {
     client->server = s->server;
     client->handler = send_hello;
 
-    printf("FD: %d\n", client_fd);
+    // printf("FD: %d\n", client_fd);
 
     ev_poll_set_write_fd(s->server, client_fd, (void*)client);
     DEBUG("Add new connection in event poll\n");
@@ -288,7 +288,7 @@ void filename_handle(void* ptr) {
         free(filename);
 
         client->text->t_cur = 0;
-        printf("full path: %s\n", base_file_path);
+        // printf("full path: %s\n", base_file_path);
 
         remove(base_file_path);
 
@@ -530,7 +530,7 @@ int recv_file_chunk(event_client* client) {
 int recv_chunk(event_client* client) {
     DEBUG("read commond chunck...\n");
     int recv_len = client->recv_func(client->fd, client->buf + client->buf_len, 16384 - client->buf_len, client);
-    printf("recive commond %d\n", recv_len);
+    // printf("recive commond %d\n", recv_len);
     if (recv_len < 1) {
         client_close(client);
         return 0;
@@ -664,7 +664,7 @@ int send_func_ssl(int fd, const void* buf, size_t len, event_client* clinet) {
 }
 int recv_func_ssl(int fd, void* buf, size_t len, event_client* clinet) {
     int r = SSL_read(clinet->ssl, buf, len);
-    printf("read: %d\n", r);
+    // printf("read: %d\n", r);
     return r;
 }
 
