@@ -601,6 +601,8 @@ void client_close(event_client* client) {
     free(client->buf);
     free(client->text->t);
     free(client->text);
+    free(client->file->t);
+    free(client->file);
     free(client);
 }
 
