@@ -114,8 +114,6 @@ void text_handle(void*);
 
 void file_handle(void*);
 
-void tls_connect_handle(void*);
-
 void to_upper(char*, int);
 
 int send_func(int, const void*, size_t, event_client*);

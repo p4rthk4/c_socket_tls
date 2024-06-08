@@ -218,7 +218,8 @@ void commond_handle(event_client* client, char* commond) {
         int send_rtv = client->send_func(client->fd, "OK HANDSHACK\r\n", 14, client);
 
         if (SSL_accept(ssl) <= 0) {
-            PANIC("ERROR ON ACCEPT...\n");
+            client_close(client);
+            return;
         }
         else {
             client->ssl = ssl;
@@ -269,7 +270,6 @@ void text_handle(void* ptr) {
             DEBUG("NOP3\n");
         }
     }
-    DEBUG("NOP2\n");
 }
 
 void file_handle(void* ptr) {
@@ -393,10 +393,6 @@ int parse_text(event_client* client, int start) {
     return PARSE_MORE;
 }
 
-void tls_connect_handle(void* ptr) {
-    event_client* client = (event_client*)ptr;
-}
-
 void send_text(void* ptr) {
     event_client* client = (event_client*)ptr;
     int rem_buf = client->text->t_cur - client->text->t_w_cur;
@@ -407,6 +403,7 @@ void send_text(void* ptr) {
     //     printf("R: %d %c\n", client->text->t[j], client->text->t[j]);
     // }
 
+    DEBUG("Write text...\n");
     int w_len = client->send_func(client->fd, client->text->t + client->text->t_w_cur, text_cap, client);
     if (w_len < 1) {
         client_close(client);
@@ -414,7 +411,8 @@ void send_text(void* ptr) {
     }
 
     if (rem_buf <= TEXT_CAP) {
-        if (send(client->fd, "<END OF TEXT>\r\n", 15, 0) < 0) {
+        DEBUG("end of text...\n");
+        if (client->send_func(client->fd, "<END OF TEXT>\r\n", 15, client) < 0) {
             PANIC("text write error");
         }
 
@@ -446,6 +444,15 @@ int recv_text_chunk(event_client* client) {
         client->text->t_cap += add;
     }
     DEBUG("read text chunck end...\n");
+    // DEBUG("NOP2\n");
+    if (client->ssl != NULL) {
+        // DEBUG("COND1\n");
+        if (SSL_pending(client->ssl) > 0) {
+            // DEBUG("COND2\n");
+            recv_text_chunk(client);
+        }
+    }
+
     return start;
 }
 
@@ -467,6 +474,15 @@ int recv_file_chunk(event_client* client) {
         client->file->t_cap += add;
     }
     DEBUG("read text chunck end...\n");
+
+    if (client->ssl != NULL) {
+        // DEBUG("COND1\n");
+        if (SSL_pending(client->ssl) > 0) {
+            // DEBUG("COND2\n");
+            recv_file_chunk(client);
+        }
+    }
+
     return start;
 }
 

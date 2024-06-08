@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	_ "time"
 )
 
 func main() {
@@ -37,6 +38,8 @@ func main() {
 	buf = make([]byte, 1024)
 	readlen, _ = conn.Read(buf)
 	fmt.Print(string(buf[:readlen]))
+	
+	////////////////// tls start
 
 	// starttls
 	_, err = conn.Write([]byte("starttls.."))
@@ -48,7 +51,6 @@ func main() {
 	readlen, _ = conn.Read(buf)
 	fmt.Print(string(buf[:readlen]))
 
-	////////////////// tls start
 
 	cert, err := ioutil.ReadFile("./cert.pem")
 	if err != nil {
@@ -63,8 +65,8 @@ func main() {
 
 	// Step 3: Create a TLS configuration
 	tlsConfig := &tls.Config{
-		RootCAs: certPool,
-		ServerName: "localhost",
+		RootCAs:            certPool,
+		ServerName:         "localhost",
 		InsecureSkipVerify: true,
 	}
 
@@ -79,6 +81,9 @@ func main() {
 	fmt.Println("client: TLS connection established")
 
 	////////////////// tls stop
+
+
+	// tlsConn := conn
 
 	// inc
 	_, err = tlsConn.Write([]byte("inc.."))
@@ -96,7 +101,7 @@ func main() {
 		panic(err)
 	}
 
-	buf = make([]byte, 1024)
+	buf = make([]byte, 10240)
 	readlen, _ = tlsConn.Read(buf)
 	fmt.Print(string(buf[:readlen]))
 
@@ -121,14 +126,14 @@ func main() {
 	// 	panic(err)
 	// }
 
-	path := "/home/parthka/Projects/c_socket_tls/dummy_files/dummy_file_3.bin"
+	path := "/home/parthka/Projects/c_socket_tls/dummy_files/dummy_file_52.bin"
 	fs, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for {
-		buf := make([]byte, 10)
+		buf := make([]byte, 1024)
 		buf_len, err := fs.Read(buf)
 		if err != nil {
 			if err == io.EOF {
@@ -158,7 +163,31 @@ func main() {
 
 	buf = make([]byte, 1024)
 	readlen, _ = tlsConn.Read(buf)
-	fmt.Print(string(buf[:readlen]))
+	fmt.Println(readlen, string(buf[:readlen]))
+
+	buf = make([]byte, 1024)
+	readlen, _ = tlsConn.Read(buf)
+	fmt.Println(readlen, string(buf[:readlen]))
+
+	buf = make([]byte, 1024)
+	readlen, _ = tlsConn.Read(buf)
+	fmt.Println(readlen, string(buf[:readlen]))
+
+	buf = make([]byte, 1024)
+	readlen, _ = tlsConn.Read(buf)
+	fmt.Println(readlen, string(buf[:readlen]))
+
+	buf = make([]byte, 1024)
+	readlen, _ = tlsConn.Read(buf)
+	fmt.Println(readlen, string(buf[:readlen]))
+
+	buf = make([]byte, 1024)
+	readlen, _ = tlsConn.Read(buf)
+	fmt.Println(readlen, string(buf[:readlen]))
+
+	buf = make([]byte, 1024)
+	readlen, _ = tlsConn.Read(buf)
+	fmt.Println(readlen, string(buf[:readlen]))
 
 	fmt.Println("quit...")
 
