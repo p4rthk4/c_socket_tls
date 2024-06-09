@@ -8,5 +8,6 @@ void init_openssl();
 void cleanup_openssl();
 SSL_CTX* create_context();
 int create_socket(const char*, int);
+void configure_context(SSL_CTX *);
 
 #endif
