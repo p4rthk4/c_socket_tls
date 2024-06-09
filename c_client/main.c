@@ -3,7 +3,8 @@
 
 // header files
 #include <main.h>
+#include <client.h>
 
 int main() {
-    printf("Hello, I Am Clinet!\n");
+    client("dummy_file_2.bin");
 }
